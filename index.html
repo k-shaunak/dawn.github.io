@@ -404,19 +404,19 @@
             switch(domain) {
                 case 'Philosophy': return <Icon name="Brain" size={size} className={className} />;
                 case 'Science': return <Icon name="Atom" size={size} className={className} />;
-                case 'Arts': return <Icon name="Palette" size={size} className={className} />;
+                case 'Arts': return <Icon name="Pen" size={size} className={className} />;
                 case 'History': return <Icon name="Landmark" size={size} className={className} />;
                 case 'Law': return <Icon name="Gavel" size={size} className={className} />;
                 case 'Economics': return <Icon name="Coins" size={size} className={className} />;
                 case 'Finance': return <Icon name="TrendingUp" size={size} className={className} />;
                 case 'Social Science': return <Icon name="Users" size={size} className={className} />;
                 case 'Politics': return <Icon name="Vote" size={size} className={className} />;
-                case 'Mathematics': return <Icon name="Sigma" size={size} className={className} />;
+                case 'Mathematics': return <Icon name="Calculator" size={size} className={className} />;
                 default: return <Icon name="BookOpen" size={size} className={className} />;
             }
         };
 
-        const DOMAINS = ["Polymath", "Philosophy", "Science", "Arts", "History", "Social Science", "Law", "Economics", "Finance", "Politics", "Mathematics"];
+        const DOMAINS = ["Assorted", "Philosophy", "Science", "Arts", "History", "Social Science", "Law", "Economics", "Finance", "Politics", "Mathematics"];
 
         const UI_THEMES = {
             'sepia': {
@@ -1120,4 +1120,5 @@
         root.render(<App />);
     </script>
 </body>
+
 </html>
