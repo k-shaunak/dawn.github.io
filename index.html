@@ -1,0 +1,1123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The Archivist | Serendipity Engine</title>
+    
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;700&family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&display=swap" rel="stylesheet">
+    
+    <!-- FontAwesome (Stable CSS Icons) -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        serif: ['Playfair Display', 'serif'],
+                    },
+                    animation: {
+                        'spin-slow': 'spin 3s linear infinite',
+                    }
+                }
+            }
+        }
+    </script>
+
+    <!-- React & ReactDOM -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+    
+    <!-- Babel -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <style>
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        
+        /* Subtle Grain Texture Animation */
+        @keyframes grain {
+            0%, 100% { transform: translate(0, 0); }
+            10% { transform: translate(-5%, -10%); }
+            20% { transform: translate(-15%, 5%); }
+            30% { transform: translate(7%, -25%); }
+            40% { transform: translate(-5%, 25%); }
+            50% { transform: translate(-15%, 10%); }
+            60% { transform: translate(15%, 0%); }
+            70% { transform: translate(0%, 15%); }
+            80% { transform: translate(3%, 35%); }
+            90% { transform: translate(-10%, 10%); }
+        }
+        .grain-overlay::after {
+            content: "";
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 400 400' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.05'/%3E%3C/svg%3E");
+            position: fixed;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            animation: grain 8s steps(10) infinite;
+            pointer-events: none;
+            z-index: 9999;
+            opacity: 0.5;
+        }
+    </style>
+</head>
+<body class="grain-overlay">
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useCallback, useRef } = React;
+        
+        // --- ICON ADAPTER SYSTEM (Replaces Lucide) ---
+        // Maps Lucide component names to FontAwesome classes
+        const FA_MAP = {
+            BookOpen: "fa-book-open",
+            RefreshCw: "fa-arrows-rotate",
+            ChevronLeft: "fa-chevron-left",
+            ExternalLink: "fa-up-right-from-square",
+            ArrowRight: "fa-arrow-right",
+            Loader2: "fa-spinner fa-spin",
+            GraduationCap: "fa-graduation-cap",
+            Library: "fa-building-columns",
+            Feather: "fa-feather-pointed",
+            X: "fa-xmark",
+            Brain: "fa-brain",
+            Send: "fa-paper-plane",
+            FileText: "fa-file-lines",
+            Lock: "fa-lock",
+            Zap: "fa-bolt",
+            HelpCircle: "fa-circle-question",
+            CheckCircle: "fa-circle-check",
+            Network: "fa-circle-nodes",
+            Search: "fa-magnifying-glass",
+            Hash: "fa-hashtag",
+            Atom: "fa-atom",
+            Palette: "fa-palette",
+            Landmark: "fa-landmark",
+            Scale: "fa-scale-balanced",
+            Coins: "fa-coins",
+            Filter: "fa-filter",
+            Users: "fa-users",
+            Map: "fa-map",
+            Activity: "fa-chart-line",
+            Globe: "fa-earth-americas",
+            TrendingUp: "fa-arrow-trend-up",
+            Calendar: "fa-calendar",
+            Book: "fa-book",
+            Sparkles: "fa-wand-magic-sparkles",
+            Settings: "fa-gear",
+            Info: "fa-circle-info",
+            AlertTriangle: "fa-triangle-exclamation",
+            Scroll: "fa-scroll",
+            PieChart: "fa-chart-pie",
+            Cpu: "fa-microchip",
+            Anchor: "fa-anchor",
+            Gavel: "fa-gavel",
+            Briefcase: "fa-briefcase",
+            Calculator: "fa-calculator",
+            Building: "fa-building",
+            Vote: "fa-check-to-slot",
+            Rocket: "fa-rocket",
+            Leaf: "fa-leaf",
+            Microscope: "fa-microscope",
+            PenTool: "fa-pen-nib",
+            Sigma: "fa-sigma", // Note: Might be generic in free set, fallback to calculator if needed
+            Divide: "fa-divide"
+        };
+
+        const Icon = ({ name, size = 16, className = "" }) => {
+            const faClass = FA_MAP[name] || "fa-circle"; // Default fallback
+            // Convert numerical size to approx fontSize if needed, or just let CSS handle it
+            return <i className={`fa-solid ${faClass} ${className}`} style={{ fontSize: size }} aria-hidden="true"></i>;
+        };
+
+        // --- EXPANDED CORPUS: V17 ---
+        const CATEGORY_MAP = [
+            // Philosophy
+            { id: "Category:Philosophical_concepts", domain: "Philosophy", label: "General Philosophy" },
+            { id: "Category:Epistemology", domain: "Philosophy", label: "Epistemology" },
+            { id: "Category:Ethics", domain: "Philosophy", label: "Ethics" },
+            { id: "Category:Paradoxes", domain: "Philosophy", label: "Paradoxes" },
+            { id: "Category:Metaphysics", domain: "Philosophy", label: "Metaphysics" },
+            { id: "Category:Existentialism", domain: "Philosophy", label: "Existentialism" },
+            { id: "Category:Political_philosophy", domain: "Philosophy", label: "Political Phil." },
+            { id: "Category:Phenomenology", domain: "Philosophy", label: "Phenomenology" },
+            { id: "Category:Logic", domain: "Philosophy", label: "Formal Logic" },
+            { id: "Category:Philosophy_of_mind", domain: "Philosophy", label: "Phil. of Mind" },
+            { id: "Category:Post-structuralism", domain: "Philosophy", label: "Post-structuralism" },
+            { id: "Category:Eastern_philosophy", domain: "Philosophy", label: "Eastern Phil." },
+            { id: "Category:Aesthetics", domain: "Philosophy", label: "Aesthetics" },
+            { id: "Category:Stoicism", domain: "Philosophy", label: "Stoicism" },
+            { id: "Category:Utilitarianism", domain: "Philosophy", label: "Utilitarianism" },
+            { id: "Category:Philosophy_of_science", domain: "Philosophy", label: "Phil. of Science" },
+            { id: "Category:Bioethics", domain: "Philosophy", label: "Bioethics" },
+            { id: "Category:Environmental_ethics", domain: "Philosophy", label: "Env. Ethics" },
+            { id: "Category:Theology", domain: "Philosophy", label: "Theology" },
+            { id: "Category:Enlightenment_philosophy", domain: "Philosophy", label: "The Enlightenment" },
+            { id: "Category:Analytic_philosophy", domain: "Philosophy", label: "Analytic Phil." },
+            { id: "Category:Continental_philosophy", domain: "Philosophy", label: "Continental Phil." },
+
+            // Social Sciences
+            { id: "Category:Cultural_anthropology", domain: "Social Science", label: "Cultural Anthro" },
+            { id: "Category:Social_psychology", domain: "Social Science", label: "Social Psych" },
+            { id: "Category:Developmental_psychology", domain: "Social Science", label: "Dev. Psych" },
+            { id: "Category:Human_geography", domain: "Social Science", label: "Human Geography" },
+            { id: "Category:Demography", domain: "Social Science", label: "Demography" },
+            { id: "Category:Criminology", domain: "Social Science", label: "Criminology" },
+            { id: "Category:Media_studies", domain: "Social Science", label: "Media Studies" },
+            { id: "Category:Social_stratification", domain: "Social Science", label: "Social Stratification" },
+            { id: "Category:Cognitive_biases", domain: "Social Science", label: "Cognitive Biases" },
+            { id: "Category:Archetypes", domain: "Social Science", label: "Archetypes" },
+            { id: "Category:Cyberculture", domain: "Social Science", label: "Cyberculture" },
+            { id: "Category:Urban_sociology", domain: "Social Science", label: "Urban Sociology" },
+            { id: "Category:Anthropology_of_religion", domain: "Social Science", label: "Anthro of Religion" },
+            { id: "Category:Environmental_social_science", domain: "Social Science", label: "Env. Social Science" },
+            { id: "Category:Science_and_technology_studies", domain: "Social Science", label: "STS" },
+            { id: "Category:Linguistics", domain: "Social Science", label: "Linguistics" },
+            { id: "Category:Sociolinguistics", domain: "Social Science", label: "Sociolinguistics" },
+            { id: "Category:Social_movements", domain: "Social Science", label: "Social Movements" },
+            { id: "Category:Globalization", domain: "Social Science", label: "Globalization" },
+
+            // Science
+            { id: "Category:Scientific_theories", domain: "Science", label: "Scientific Theories" },
+            { id: "Category:Physical_cosmology", domain: "Science", label: "Cosmology" },
+            { id: "Category:Cognitive_science", domain: "Science", label: "Cognitive Science" },
+            { id: "Category:Fluid_dynamics", domain: "Science", label: "Fluid Dynamics" },
+            { id: "Category:Oceanography", domain: "Science", label: "Oceanography" },
+            { id: "Category:Materials_science", domain: "Science", label: "Material Science" },
+            { id: "Category:Quantum_mechanics", domain: "Science", label: "Quantum Mechanics" },
+            { id: "Category:Complexity_theory", domain: "Science", label: "Complexity Theory" },
+            { id: "Category:Cybernetics", domain: "Science", label: "Cybernetics" },
+            { id: "Category:String_theory", domain: "Science", label: "String Theory" },
+            { id: "Category:Evolutionary_biology", domain: "Science", label: "Evolutionary Bio" },
+            { id: "Category:Chaos_theory", domain: "Science", label: "Chaos Theory" },
+            { id: "Category:Neuroscience", domain: "Science", label: "Neuroscience" },
+            { id: "Category:Behavioral_genetics", domain: "Science", label: "Behavioral Genetics" },
+            { id: "Category:Climatology", domain: "Science", label: "Climatology" },
+            { id: "Category:Immunology", domain: "Science", label: "Immunology" },
+            { id: "Category:Astrophysics", domain: "Science", label: "Astrophysics" },
+            { id: "Category:Glaciology", domain: "Science", label: "Glaciology" },
+            { id: "Category:Public_health", domain: "Science", label: "Public Health" },
+            { id: "Category:History_of_medicine", domain: "Science", label: "Hist. of Medicine" },
+            { id: "Category:Artificial_intelligence", domain: "Science", label: "AI Theory" },
+            { id: "Category:Cryptography", domain: "Science", label: "Cryptography" },
+            { id: "Category:Nanotechnology", domain: "Science", label: "Nanotechnology" },
+            { id: "Category:Forensic_science", domain: "Science", label: "Forensic Science" },
+            { id: "Category:Quantum_computing", domain: "Science", label: "Quantum Computing" },
+            { id: "Category:Renewable_energy", domain: "Science", label: "Renewable Energy" },
+            { id: "Category:Spaceflight", domain: "Science", label: "Spaceflight" },
+            { id: "Category:Mycology", domain: "Science", label: "Mycology" },
+            { id: "Category:Ornithology", domain: "Science", label: "Ornithology" },
+            { id: "Category:Entomology", domain: "Science", label: "Entomology" },
+            { id: "Category:Botany", domain: "Science", label: "Botany" },
+            { id: "Category:Astrobiology", domain: "Science", label: "Astrobiology" },
+            { id: "Category:Network_science", domain: "Science", label: "Network Science" },
+            { id: "Category:Data_science", domain: "Science", label: "Data Science" },
+            { id: "Category:Thermodynamics", domain: "Science", label: "Thermodynamics" },
+            { id: "Category:Particle_physics", domain: "Science", label: "Particle Physics" },
+            { id: "Category:Optics", domain: "Science", label: "Optics" },
+
+            // Arts & Culture
+            { id: "Category:Art_movements", domain: "Arts", label: "Art Movements" },
+            { id: "Category:Architectural_styles", domain: "Arts", label: "Architecture" },
+            { id: "Category:Music_theory", domain: "Arts", label: "Music Theory" },
+            { id: "Category:Urban_planning", domain: "Arts", label: "Urban Planning" },
+            { id: "Category:Game_studies", domain: "Arts", label: "Game Studies" },
+            { id: "Category:Film_noir", domain: "Arts", label: "Film Noir" },
+            { id: "Category:Typography", domain: "Arts", label: "Typography" },
+            { id: "Category:Bauhaus", domain: "Arts", label: "The Bauhaus" },
+            { id: "Category:Brutalist_architecture", domain: "Arts", label: "Brutalism" },
+            { id: "Category:Film_theory", domain: "Arts", label: "Film Theory" },
+            { id: "Category:Classical_music_eras", domain: "Arts", label: "Classical Music" },
+            { id: "Category:Art_Deco", domain: "Arts", label: "Art Deco" },
+            { id: "Category:Comparative_literature", domain: "Arts", label: "Comp. Literature" },
+            { id: "Category:Art_history_methods", domain: "Arts", label: "Art History Methods" },
+            { id: "Category:Surrealism", domain: "Arts", label: "Surrealism" },
+            { id: "Category:Renaissance_art", domain: "Arts", label: "Renaissance Art" },
+            { id: "Category:Literary_theory", domain: "Arts", label: "Literary Theory" },
+            { id: "Category:Postmodern_literature", domain: "Arts", label: "Postmodern Lit." },
+            { id: "Category:Abstract_expressionism", domain: "Arts", label: "Abstract Exp." },
+            { id: "Category:Neoclassicism", domain: "Arts", label: "Neoclassicism" },
+            { id: "Category:Victorian_literature", domain: "Arts", label: "Victorian Lit." },
+            { id: "Category:Romanticism", domain: "Arts", label: "Romanticism" },
+            { id: "Category:Magical_realism", domain: "Arts", label: "Magical Realism" },
+            { id: "Category:Cyberpunk", domain: "Arts", label: "Cyberpunk" },
+            { id: "Category:Gothic_fiction", domain: "Arts", label: "Gothic Fiction" },
+            { id: "Category:Calligraphy", domain: "Arts", label: "Calligraphy" },
+            { id: "Category:Pottery", domain: "Arts", label: "Pottery" },
+            { id: "Category:Textile_arts", domain: "Arts", label: "Textile Arts" },
+            { id: "Category:Printmaking", domain: "Arts", label: "Printmaking" },
+            { id: "Category:Modernist_literature", domain: "Arts", label: "Modernism" },
+            { id: "Category:Beat_Generation", domain: "Arts", label: "Beat Generation" },
+            { id: "Category:Renaissance_literature", domain: "Arts", label: "Renaissance Lit." },
+
+            // History & Politics
+            { id: "Category:Ancient_civilizations", domain: "History", label: "Ancient History" },
+            { id: "Category:Sociological_theories", domain: "History", label: "Sociology" },
+            { id: "Category:Linguistics", domain: "History", label: "Linguistics" },
+            { id: "Category:Archaeology", domain: "History", label: "Archaeology" },
+            { id: "Category:Classical_mythology", domain: "History", label: "Mythology" },
+            { id: "Category:Political_geography", domain: "History", label: "Geopolitics" },
+            { id: "Category:Historiography", domain: "History", label: "Historiography" },
+            { id: "Category:World_mythology", domain: "History", label: "World Mythology" },
+            { id: "Category:Military_history", domain: "History", label: "Military History" },
+            { id: "Category:Diplomatic_history", domain: "History", label: "Diplomatic History" },
+            { id: "Category:Intellectual_history", domain: "History", label: "Intellectual History" },
+            { id: "Category:History_of_science", domain: "History", label: "History of Science" },
+            { id: "Category:Comparative_religion", domain: "History", label: "Comp. Religion" },
+            { id: "Category:Cartography", domain: "History", label: "Cartography" },
+            { id: "Category:Numismatics", domain: "History", label: "Numismatics" },
+            { id: "Category:Vexillology", domain: "History", label: "Vexillology" },
+            { id: "Category:Feudal_Japan", domain: "History", label: "Feudal Japan" },
+            { id: "Category:Mesoamerican_civilizations", domain: "History", label: "Mesoamerica" },
+            { id: "Category:Cold_War", domain: "History", label: "Cold War" },
+            { id: "Category:Oral_history", domain: "History", label: "Oral History" },
+            { id: "Category:Genealogy", domain: "History", label: "Genealogy" },
+            { id: "Category:Psychohistory", domain: "History", label: "Psychohistory" },
+            { id: "Category:Microhistory", domain: "History", label: "Microhistory" },
+            { id: "Category:Industrial_Revolution", domain: "History", label: "Industrial Rev." },
+            { id: "Category:Age_of_Discovery", domain: "History", label: "Age of Discovery" },
+            { id: "Category:Silk_Road", domain: "History", label: "The Silk Road" },
+            
+            // Politics
+            { id: "Category:Political_ideologies", domain: "Politics", label: "Political Ideologies" },
+            { id: "Category:International_relations_theory", domain: "Politics", label: "IR Theory" },
+            { id: "Category:Forms_of_government", domain: "Politics", label: "Forms of Gov." },
+            { id: "Category:Public_policy", domain: "Politics", label: "Public Policy" },
+            { id: "Category:Voting_systems", domain: "Politics", label: "Voting Systems" },
+            { id: "Category:Postcolonialism", domain: "Politics", label: "Post-Colonialism" },
+            { id: "Category:Human_rights", domain: "Politics", label: "Human Rights" },
+            { id: "Category:Comparative_politics", domain: "Politics", label: "Comparative Politics" },
+            { id: "Category:Political_campaigning", domain: "Politics", label: "Political Campaigning" },
+            { id: "Category:Geopolitics", domain: "Politics", label: "Geopolitics" },
+            { id: "Category:Psephology", domain: "Politics", label: "Psephology" },
+            { id: "Category:Public_opinion", domain: "Politics", label: "Public Opinion" },
+            { id: "Category:Civil_disobedience", domain: "Politics", label: "Civil Disobedience" },
+
+            // Law
+            { id: "Category:International_law", domain: "Law", label: "International Law" },
+            { id: "Category:Legal_doctrines_and_principles", domain: "Law", label: "Legal Principles" },
+            { id: "Category:Jurisprudence", domain: "Law", label: "Jurisprudence" },
+            { id: "Category:Constitutional_law", domain: "Law", label: "Constitutional Law" },
+            { id: "Category:Criminal_law", domain: "Law", label: "Criminal Law" },
+            { id: "Category:Tort_law", domain: "Law", label: "Tort Law" },
+            { id: "Category:Contract_law", domain: "Law", label: "Contract Law" },
+            { id: "Category:Intellectual_property_law", domain: "Law", label: "IP Law" },
+            { id: "Category:Admiralty_law", domain: "Law", label: "Maritime Law" },
+            { id: "Category:Comparative_law", domain: "Law", label: "Comparative Law" },
+
+            // Economics
+            { id: "Category:Macroeconomics", domain: "Economics", label: "Macroeconomics" },
+            { id: "Category:Behavioral_economics", domain: "Economics", label: "Behavioral Econ" },
+            { id: "Category:Game_theory", domain: "Economics", label: "Game Theory" },
+            { id: "Category:Political_economy", domain: "Economics", label: "Political Economy" },
+            { id: "Category:International_political_economy", domain: "Economics", label: "Int. Pol. Economy" },
+            { id: "Category:Urban_economics", domain: "Economics", label: "Urban Economics" },
+            { id: "Category:Development_economics", domain: "Economics", label: "Development Econ" },
+            { id: "Category:Labor_economics", domain: "Economics", label: "Labor Economics" },
+            { id: "Category:Econometrics", domain: "Economics", label: "Econometrics" },
+            { id: "Category:History_of_economic_thought", domain: "Economics", label: "History of Econ" },
+            { id: "Category:Welfare_economics", domain: "Economics", label: "Welfare Econ" },
+            { id: "Category:Industrial_organization", domain: "Economics", label: "Industrial Org" },
+            { id: "Category:Environmental_economics", domain: "Economics", label: "Env. Economics" },
+            { id: "Category:Economic_history", domain: "Economics", label: "Economic History" },
+            { id: "Category:Economic_geography", domain: "Economics", label: "Economic Geography" },
+
+            // Finance
+            { id: "Category:Financial_markets", domain: "Finance", label: "Financial Markets" },
+            { id: "Category:Economic_bubbles", domain: "Finance", label: "Economic Bubbles" },
+            { id: "Category:Monetary_economics", domain: "Finance", label: "Monetary Theory" },
+            { id: "Category:Investment", domain: "Finance", label: "Investment Theory" },
+            { id: "Category:Corporate_finance", domain: "Finance", label: "Corp. Finance" },
+            { id: "Category:Public_finance", domain: "Finance", label: "Public Finance" },
+            { id: "Category:Financial_risk", domain: "Finance", label: "Risk Management" },
+            { id: "Category:Derivatives_(finance)", domain: "Finance", label: "Derivatives" },
+            { id: "Category:Actuarial_science", domain: "Finance", label: "Actuarial Science" },
+            { id: "Category:Banking", domain: "Finance", label: "Banking" },
+            { id: "Category:Financial_regulation", domain: "Finance", label: "Financial Regulation" },
+            { id: "Category:Behavioral_finance", domain: "Finance", label: "Behavioral Finance" },
+
+            // Mathematics
+            { id: "Category:Number_theory", domain: "Mathematics", label: "Number Theory" },
+            { id: "Category:Topology", domain: "Mathematics", label: "Topology" },
+            { id: "Category:Combinatorics", domain: "Mathematics", label: "Combinatorics" },
+            { id: "Category:Set_theory", domain: "Mathematics", label: "Set Theory" },
+            { id: "Category:Graph_theory", domain: "Mathematics", label: "Graph Theory" },
+            { id: "Category:Linear_algebra", domain: "Mathematics", label: "Linear Algebra" },
+            { id: "Category:Probability_theory", domain: "Mathematics", label: "Probability" },
+            { id: "Category:Mathematical_logic", domain: "Mathematics", label: "Math Logic" }
+        ];
+
+        // --- EXTERNAL LINKS ---
+        const EXTERNAL_RESOURCES = {
+            "Philosophy": [
+                { name: "Stanford Encyclopedia (SEP)", url: "https://plato.stanford.edu/search/searcher.py?query=" },
+                { name: "Internet Encyclopedia (IEP)", url: "https://iep.utm.edu/?s=" }
+            ],
+            "Science": [
+                { name: "ArXiv.org", url: "https://arxiv.org/search/?query=" },
+                { name: "Nature.com", url: "https://www.nature.com/search?q=" }
+            ],
+            "History": [
+                { name: "JSTOR", url: "https://www.jstor.org/action/doBasicSearch?Query=" },
+                { name: "Project Gutenberg", url: "https://www.gutenberg.org/ebooks/search/?query=" }
+            ],
+            "Arts": [
+                { name: "Google Arts & Culture", url: "https://artsandculture.google.com/search?q=" },
+                { name: "The Art Story", url: "https://www.theartstory.org/search-results.htm?q=" }
+            ],
+            "Social Science": [
+                { name: "SSRN", url: "https://papers.ssrn.com/sol3/results.cfm?txtKey_Words=" },
+                { name: "APA PsycNet", url: "https://psycnet.apa.org/search/results?term=" }
+            ],
+            "Economics": [
+                { name: "NBER", url: "https://www.nber.org/search?q=" },
+                { name: "The Economist", url: "https://www.economist.com/search?q=" }
+            ],
+            "Finance": [
+                { name: "Investopedia", url: "https://www.investopedia.com/search?q=" },
+                { name: "Financial Times", url: "https://www.ft.com/search?q=" }
+            ],
+            "Law": [
+                { name: "Legal Info Institute", url: "https://www.law.cornell.edu/search/lii?query=" },
+                { name: "Justia", url: "https://www.justia.com/search?q=" }
+            ],
+            "Politics": [
+                { name: "Congressional Research", url: "https://crsreports.congress.gov/search/#/?termsToSearch=" },
+                { name: "Foreign Affairs", url: "https://www.foreignaffairs.com/search?q=" }
+            ],
+            "Mathematics": [
+                { name: "Wolfram MathWorld", url: "https://mathworld.wolfram.com/search/?query=" },
+                { name: "ArXiv Math", url: "https://arxiv.org/search/?query=" }
+            ]
+        };
+
+        const getDomainIcon = (domain, size = 24, className = "") => {
+            switch(domain) {
+                case 'Philosophy': return <Icon name="Brain" size={size} className={className} />;
+                case 'Science': return <Icon name="Atom" size={size} className={className} />;
+                case 'Arts': return <Icon name="Palette" size={size} className={className} />;
+                case 'History': return <Icon name="Landmark" size={size} className={className} />;
+                case 'Law': return <Icon name="Gavel" size={size} className={className} />;
+                case 'Economics': return <Icon name="Coins" size={size} className={className} />;
+                case 'Finance': return <Icon name="TrendingUp" size={size} className={className} />;
+                case 'Social Science': return <Icon name="Users" size={size} className={className} />;
+                case 'Politics': return <Icon name="Vote" size={size} className={className} />;
+                case 'Mathematics': return <Icon name="Sigma" size={size} className={className} />;
+                default: return <Icon name="BookOpen" size={size} className={className} />;
+            }
+        };
+
+        const DOMAINS = ["Polymath", "Philosophy", "Science", "Arts", "History", "Social Science", "Law", "Economics", "Finance", "Politics", "Mathematics"];
+
+        const UI_THEMES = {
+            'sepia': {
+                label: 'Sepia',
+                bg: '#f2e8cf', bgCss: 'bg-[#f2e8cf]', text: 'text-[#382b22]', textColor: '#382b22',
+                panel: 'bg-[#fffcf5]', border: 'border-[#d6cbb0]', accent: 'text-[#8c7b60]',
+                button: 'bg-[#2c241b] text-[#f2e8cf] hover:bg-[#4a3b2a] border border-[#382b22]', buttonText: 'text-[#f2e8cf]',
+                font: 'font-serif', pointerColor: '#8c7b60', spinnerBg: 'bg-[#f9f4e6]',
+                link: 'text-[#5c4d3c] decoration-[#8c7b60]'
+            },
+            'dark': {
+                label: 'Obsidian',
+                bg: '#09090b', bgCss: 'bg-zinc-950', text: 'text-zinc-200', textColor: '#e4e4e7',
+                panel: 'bg-zinc-900', border: 'border-zinc-800', accent: 'text-zinc-400',
+                button: 'bg-indigo-600 text-white hover:bg-indigo-500', buttonText: 'text-white',
+                font: 'font-sans', pointerColor: '#e4e4e7', spinnerBg: 'bg-zinc-900',
+                link: 'text-indigo-400 decoration-indigo-600'
+            },
+            'light': {
+                label: 'Light',
+                bg: '#ffffff', bgCss: 'bg-white', text: 'text-slate-900', textColor: '#0f172a',
+                panel: 'bg-slate-50', border: 'border-slate-200', accent: 'text-slate-400',
+                button: 'bg-blue-600 text-white hover:bg-blue-700', buttonText: 'text-white',
+                font: 'font-sans', pointerColor: '#0f172a', spinnerBg: 'bg-slate-100',
+                link: 'text-blue-600 decoration-blue-300'
+            }
+        };
+
+        // --- HELPERS ---
+        const cleanText = (text) => {
+            if (!text) return "";
+            return text.replace(/\\displaystyle/g, '')
+                .replace(/{\\.*?{(.*?)}}/g, '$1')
+                .replace(/\\text{/g, '').replace(/\\mathbb{/g, '')
+                .replace(/\\mathcal{/g, '').replace(/\\mathbf{/g, '')
+                .replace(/}/g, '').replace(/\[\d+\]/g, '')
+                .replace(/\(listen\)/g, '').replace(/\s+/g, ' ').trim();
+        };
+
+        const isValidTopic = (title) => {
+            if (!title) return false;
+            if (title.match(/^\d+$/)) return false; 
+            if (title.includes(":")) return false; 
+            if (title.startsWith("List of")) return false;
+            if (title.startsWith("Index of")) return false;
+            return true;
+        };
+
+        const fetchSingleTopicFromCategory = async (category) => {
+            const endpoint = `https://en.wikipedia.org/w/api.php?action=query&list=categorymembers&cmtitle=${category.id}&cmlimit=50&cmtype=page&origin=*&format=json`;
+            try {
+                const response = await fetch(endpoint);
+                const data = await response.json();
+                const members = data.query?.categorymembers;
+                if (!members || members.length === 0) return null;
+                const validMembers = members.filter(m => isValidTopic(m.title));
+                if (validMembers.length === 0) return null;
+                const randomMember = validMembers[Math.floor(Math.random() * validMembers.length)];
+                return { title: randomMember.title, category: category };
+            } catch (error) { return null; }
+        };
+
+        const fetchTopicDetails = async (titles) => {
+            const query = titles.map(t => encodeURIComponent(t)).join('|');
+            const endpoint = `https://en.wikipedia.org/w/api.php?action=query&titles=${query}&prop=extracts|info&inprop=length|touched&exintro=true&explaintext=true&origin=*&format=json`;
+            try {
+                const response = await fetch(endpoint);
+                const data = await response.json();
+                const pages = data.query?.pages;
+                if (!pages) return [];
+                return Object.values(pages).filter(p => !p.missing);
+            } catch (error) { return []; }
+        };
+
+        const fetchPageViews = async (title) => {
+            const now = new Date();
+            const end = now.toISOString().slice(0,10).replace(/-/g,'');
+            const start = new Date(now.setDate(now.getDate() - 30)).toISOString().slice(0,10).replace(/-/g,'');
+            const endpoint = `https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article/en.wikipedia/all-access/all-agents/${encodeURIComponent(title)}/daily/${start}/${end}`;
+            try {
+                const response = await fetch(endpoint);
+                if (!response.ok) return null;
+                const data = await response.json();
+                if (!data.items) return null;
+                const totalViews = data.items.reduce((acc, curr) => acc + curr.views, 0);
+                const trend = data.items.map(i => i.views);
+                return { total: totalViews, trend };
+            } catch (error) { return null; }
+        };
+
+        const fetchRelatedLinks = async (title) => {
+            const endpoint = `https://en.wikipedia.org/w/api.php?action=query&titles=${encodeURIComponent(title)}&prop=links&pllimit=100&plnamespace=0&origin=*&format=json`;
+            try {
+                const response = await fetch(endpoint);
+                const data = await response.json();
+                const pages = data.query?.pages;
+                const pageId = Object.keys(pages)[0];
+                const links = pages[pageId]?.links;
+                if (!links) return [];
+                const validLinks = links.map(l => l.title).filter(t => isValidTopic(t) && !t.includes("(identifier)") && t.length > 4); 
+                const shuffled = validLinks.sort(() => 0.5 - Math.random());
+                return shuffled.slice(0, 3);
+            } catch (error) { return []; }
+        };
+
+        const fetchSections = async (title) => {
+            const endpoint = `https://en.wikipedia.org/w/api.php?action=parse&page=${encodeURIComponent(title)}&prop=sections&origin=*&format=json`;
+            try {
+                const response = await fetch(endpoint);
+                const data = await response.json();
+                const sections = data.parse?.sections;
+                if (!sections) return [];
+                return sections.filter(s => parseInt(s.level) === 2 && !["See also", "References", "External links", "Notes", "Further reading", "Bibliography"].includes(s.line)).slice(0, 5).map(s => s.line);
+            } catch (error) { return []; }
+        };
+
+        const fetchBooks = async (query) => {
+            try {
+                const res = await fetch(`https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(query)}&printType=books&maxResults=3&orderBy=relevance`);
+                const data = await res.json();
+                return data.items || [];
+            } catch (e) { return []; }
+        };
+
+        const callGeminiChat = async (apiKey, history, topicContext, systemInstructionOverride) => {
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+            const defaultSystem = `You are a knowledgeable academic librarian helping a user explore "${topicContext.title}". Context: "${topicContext.extract.substring(0, 4000)}..." Guidelines: Answer concisely using Unicode for math. Be intellectual but accessible.`;
+            const systemPrompt = systemInstructionOverride || defaultSystem;
+            const contents = [{ role: "user", parts: [{ text: systemPrompt }] }, ...history.map(msg => ({ role: msg.role === 'user' ? 'user' : 'model', parts: [{ text: msg.content }] }))];
+            const safetySettings = [{ category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" }, { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" }, { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" }, { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" }];
+            try {
+                const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contents, safetySettings }) });
+                if (!response.ok) { const errData = await response.json(); throw new Error(`API Error: ${errData.error?.message || response.statusText}`); }
+                const data = await response.json();
+                const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+                if (!text) return "The archives are silent.";
+                return text;
+            } catch (error) { return `Connection interrupted: ${error.message}`; }
+        };
+
+        // --- COMPONENTS ---
+        const CredentialsModal = ({ isOpen, onClose, onConfirm }) => {
+            const [key, setKey] = useState('');
+            const [showGuide, setShowGuide] = useState(false);
+            if (!isOpen) return null;
+            return (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-stone-950/80 backdrop-blur-md animate-in fade-in">
+                    <div className="bg-white max-w-lg w-full p-8 shadow-2xl relative rounded-xl font-sans text-stone-900">
+                        <button onClick={onClose} className="absolute top-4 right-4 text-stone-400 hover:text-stone-800 transition-colors"><Icon name="X" size={20} /></button>
+                        <div className="flex items-center gap-3 mb-6">
+                            <div className="p-2 bg-indigo-50 rounded-lg text-indigo-700"><Icon name="Sparkles" size={24}/></div>
+                            <h2 className="text-xl font-bold text-stone-900 tracking-tight">Scholar's Lens</h2>
+                        </div>
+                        <p className="text-sm text-stone-600 mb-6 leading-relaxed">Activate AI-augmented analysis for <strong className="text-indigo-700">Intellectual Synthesis</strong> and a <strong className="text-indigo-700">Conversational Librarian</strong>.</p>
+                        <input type="password" placeholder="Paste Gemini API Key (starts with AIza...)" className="w-full p-3 border border-stone-200 rounded-lg mb-4 font-mono text-sm focus:border-indigo-500 outline-none transition-all" value={key} onChange={(e) => setKey(e.target.value)} />
+                        <button onClick={() => onConfirm(key)} className="w-full py-3 bg-indigo-600 text-white text-xs uppercase tracking-widest font-bold hover:bg-indigo-700 transition-colors rounded-lg shadow-sm mb-4">Initialize Lens</button>
+                        <button onClick={() => setShowGuide(!showGuide)} className="flex items-center gap-2 text-xs font-medium text-stone-400 hover:text-indigo-600 transition-colors mx-auto"><Icon name="HelpCircle" size={14} /> Where do I get a key?</button>
+                        {showGuide && <div className="mt-4 p-4 bg-stone-50 text-xs text-stone-500 rounded-lg border border-stone-100 leading-relaxed">1. Visit <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer" className="text-indigo-600 font-bold hover:underline">Google AI Studio</a>.<br/>2. Create a free API Key.<br/>3. Paste it above. (Stored locally).</div>}
+                    </div>
+                </div>
+            );
+        };
+
+        const SettingsPopover = ({ isOpen, onClose, currentSettings, onUpdate }) => {
+            if (!isOpen) return null;
+            return (
+                <div className="absolute top-full right-0 mt-2 z-[100] w-64 bg-white/95 backdrop-blur-md shadow-2xl rounded-xl border border-stone-200 p-4 font-sans text-stone-900 animate-in fade-in slide-in-from-top-2 origin-top-right">
+                    <div className="flex justify-between items-center mb-4 pb-2 border-b border-stone-100">
+                        <h3 className="text-xs font-bold uppercase tracking-widest text-stone-500">Configuration</h3>
+                        <button onClick={onClose}><Icon name="X" size={14} className="text-stone-400 hover:text-stone-600" /></button>
+                    </div>
+                    <div className="space-y-4">
+                        <div>
+                            <label className="text-[10px] font-bold text-stone-400 block mb-2">Interface Theme</label>
+                            <div className="flex gap-1">
+                                {['sepia', 'dark', 'light'].map(t => (
+                                    <button key={t} onClick={() => onUpdate('theme', t)} className={`flex-1 py-2 text-[10px] font-bold capitalize rounded-md border transition-all ${currentSettings.theme === t ? 'border-indigo-500 bg-indigo-50 text-indigo-700 shadow-sm' : 'border-stone-200 text-stone-600 hover:bg-stone-50'}`}>{t}</button>
+                                ))}
+                            </div>
+                        </div>
+                        <div>
+                            <label className="text-[10px] font-bold text-stone-400 block mb-2">Sector Count</label>
+                            <div className="flex gap-1">
+                                {[3, 4, 5].map(n => (
+                                    <button key={n} onClick={() => onUpdate('sectors', n)} className={`flex-1 py-2 text-[10px] font-bold rounded-md border transition-all ${currentSettings.sectors === n ? 'border-indigo-500 bg-indigo-50 text-indigo-700 shadow-sm' : 'border-stone-200 text-stone-600 hover:bg-stone-50'}`}>{n}</button>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const EnhancedChatModule = ({ topic, apiKey, theme }) => {
+            const [messages, setMessages] = useState([]);
+            const [input, setInput] = useState('');
+            const [loading, setLoading] = useState(false);
+            const endRef = useRef(null);
+            const suggestions = [`What are the main criticisms?`, `Historical context?`, `Key figures involved?`];
+
+            useEffect(() => { setMessages([{ role: 'model', content: `I have analyzed "${topic.title}". Ask me to synthesize key debates or explain concepts.` }]); }, [topic]);
+            useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
+
+            const send = async (txt) => {
+                const query = txt || input;
+                if (!query.trim() || loading) return;
+                const userMsg = { role: 'user', content: query };
+                setMessages(p => [...p, userMsg]);
+                setInput('');
+                setLoading(true);
+                const resp = await callGeminiChat(apiKey, [...messages, userMsg], topic);
+                setMessages(p => [...p, { role: 'model', content: resp }]);
+                setLoading(false);
+            };
+
+            return (
+                <div className={`rounded-xl shadow-xl border ${theme.border} overflow-hidden flex flex-col h-[500px] ${theme.panel}`}>
+                    <div className={`p-4 border-b ${theme.border} flex items-center justify-between bg-opacity-50`}>
+                        <div className={`flex items-center gap-2 ${theme.text}`}>
+                            <Icon name="Feather" size={16} />
+                            <span className="text-xs font-bold uppercase tracking-widest">Librarian</span>
+                        </div>
+                        <span className={`text-[9px] uppercase tracking-widest ${theme.accent} border ${theme.border} px-2 py-1 rounded-full flex items-center gap-1`}><Icon name="Sparkles" size={10} /> Scholar's Lens</span>
+                    </div>
+                    <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                        {messages.map((m, i) => (
+                            <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                                <div className={`max-w-[85%] p-3 text-sm rounded-xl leading-relaxed ${m.role === 'user' ? `${theme.button} ${theme.buttonText} rounded-br-none shadow-sm` : `border ${theme.border} ${theme.text} rounded-bl-none shadow-sm`}`}>{m.content}</div>
+                            </div>
+                        ))}
+                        {loading && <div className={`flex items-center gap-2 ${theme.accent} text-xs pl-2`}><Icon name="Loader2" size={12} className="animate-spin" /> Consulting...</div>}
+                        <div ref={endRef} />
+                    </div>
+                    {messages.length < 3 && !loading && (
+                        <div className="px-4 pb-2 flex gap-2 overflow-x-auto no-scrollbar">
+                            {suggestions.map((s, i) => (
+                                <button key={i} onClick={() => send(s)} className={`whitespace-nowrap px-3 py-1.5 ${theme.bgCss} hover:opacity-80 ${theme.text} text-xs border ${theme.border} rounded-full transition-colors`}>{s}</button>
+                            ))}
+                        </div>
+                    )}
+                    <div className={`p-3 border-t ${theme.border} flex gap-2`}>
+                        <input value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && send()} placeholder="Ask a deeper question..." className={`flex-1 ${theme.bgCss} rounded-lg px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-stone-400 transition-all ${theme.text}`} />
+                        <button onClick={() => send()} disabled={loading} className={`p-2 ${theme.button} rounded-lg transition-colors`}><Icon name="Send" size={14} /></button>
+                    </div>
+                </div>
+            );
+        };
+
+        const Sparkline = ({ data, color }) => {
+            if (!data || data.length === 0) return null;
+            const max = Math.max(...data);
+            const min = Math.min(...data);
+            const range = max - min || 1;
+            const points = data.map((val, idx) => {
+                const x = (idx / (data.length - 1)) * 100;
+                const y = 100 - ((val - min) / range) * 100;
+                return `${x},${y}`;
+            }).join(' ');
+            return (
+                <div className="h-8 w-full mt-2 relative">
+                    <svg className="w-full h-full overflow-visible" viewBox="0 0 100 100" preserveAspectRatio="none">
+                        <polyline fill="none" stroke={color || "currentColor"} strokeWidth="2" points={points} vectorEffect="non-scaling-stroke" />
+                    </svg>
+                </div>
+            );
+        };
+
+        const Dashboard = ({ topic, mode, apiKey, theme, onBack, onNavigate }) => {
+            const [fullReadTime, setFullReadTime] = useState(null);
+            const [relatedLinks, setRelatedLinks] = useState([]);
+            const [sections, setSections] = useState([]);
+            const [loadingExtras, setLoadingExtras] = useState(true);
+            const [aiSynthesis, setAiSynthesis] = useState(null);
+            const [stats, setStats] = useState(null);
+            const [lastModified, setLastModified] = useState(null);
+            const [books, setBooks] = useState([]);
+
+            useEffect(() => {
+                const fetchData = async () => {
+                    setLoadingExtras(true);
+                    if (topic.length) {
+                        const minutes = Math.ceil((topic.length / 6) / 200);
+                        setFullReadTime(minutes);
+                    }
+                    if (topic.touched) {
+                        const date = new Date(topic.touched);
+                        setLastModified(date.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }));
+                    }
+                    const viewData = await fetchPageViews(topic.title);
+                    setStats(viewData);
+                    const links = await fetchRelatedLinks(topic.title);
+                    setRelatedLinks(links);
+                    const bookData = await fetchBooks(topic.title);
+                    setBooks(bookData);
+                    if (mode === 'plain') {
+                        const sec = await fetchSections(topic.title);
+                        setSections(sec);
+                    } else if (mode === 'augmented') {
+                        const prompt = `Act as an expert researcher. Based on the topic "${topic.title}", provide a brief bulleted list of "Key Intellectual Debates" or "Core Controversies" in this field. Do not use markdown. Just plain text bullets.`;
+                        const synthesis = await callGeminiChat(apiKey, [], topic, prompt);
+                        setAiSynthesis(synthesis);
+                    }
+                    setLoadingExtras(false);
+                };
+                fetchData();
+            }, [topic, mode, apiKey]);
+
+            const domain = topic.category.domain;
+            const externalSources = EXTERNAL_RESOURCES[domain] || EXTERNAL_RESOURCES["Science"];
+
+            return (
+                <div className="animate-in fade-in slide-in-from-bottom-4 duration-700 max-w-6xl mx-auto w-full pb-20">
+                    <div className={`mb-8 border-b ${theme.border} pb-4 flex justify-between items-center`}>
+                        <button onClick={onBack} className={`group flex items-center ${theme.accent} hover:${theme.text} text-xs font-bold transition-colors uppercase tracking-widest font-sans`}>
+                            <Icon name="ChevronLeft" size={14} className="mr-1 group-hover:-translate-x-1 transition-transform" /> Index
+                        </button>
+                        <span className={`text-[10px] uppercase tracking-widest font-bold ${theme.accent}`}>{mode === 'augmented' ? "Scholar's Lens Active" : 'Standard Access'}</span>
+                    </div>
+
+                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-12">
+                        <div className="lg:col-span-4 space-y-6">
+                            <div className={`${theme.panel} p-6 shadow-xl shadow-black/5 rounded-xl border ${theme.border} relative overflow-hidden`}>
+                                {theme.label === 'Sepia' && <div className="absolute top-0 left-0 w-full h-1 bg-[#8c7b60] opacity-50"></div>}
+                                <h3 className={`text-[10px] font-bold ${theme.accent} uppercase tracking-widest mb-6 flex items-center gap-2 font-sans font-extrabold`}>
+                                    <Icon name="FileText" size={14} /> Topic Dossier
+                                </h3>
+                                <div className={`space-y-4 font-sans text-sm ${theme.text} opacity-90 mb-8`}>
+                                    <div className={`flex justify-between border-b ${theme.border} pb-2`}>
+                                        <span className="text-xs font-medium opacity-60">Domain</span>
+                                        {topic.category && (
+                                            <span className="font-bold flex items-center gap-2">
+                                                {getDomainIcon(topic.category.domain, 14)} {topic.category.domain}
+                                            </span>
+                                        )}
+                                    </div>
+                                    {fullReadTime && <div className={`flex justify-between border-b ${theme.border} pb-2`}><span className="text-xs font-medium opacity-60">Full Manuscript</span><span className="font-bold">~{fullReadTime} min</span></div>}
+                                    {lastModified && <div className={`flex justify-between border-b ${theme.border} pb-2`}><span className="text-xs font-medium opacity-60">Last Updated</span><span className="font-bold">{lastModified}</span></div>}
+                                    <div className={`flex justify-between border-b ${theme.border} pb-2`}><span className="text-xs font-medium opacity-60">Source</span><span className="font-bold flex items-center gap-1"><Icon name="Globe" size={12}/> Wikipedia API (Open Web)</span></div>
+                                </div>
+
+                                {stats && (
+                                    <div className="mb-8">
+                                        <h4 className={`text-[10px] font-bold ${theme.accent} uppercase tracking-widest mb-2 flex items-center gap-2 font-sans font-extrabold`}><Icon name="TrendingUp" size={12} /> Public Interest (30d)</h4>
+                                        <div className={`p-3 rounded-lg border ${theme.border} bg-opacity-50`}>
+                                            <div className="flex justify-between items-end mb-1"><span className={`text-xl font-bold ${theme.text}`}>{stats.total.toLocaleString()}</span><span className={`text-[10px] ${theme.accent}`}>Views</span></div>
+                                            <Sparkline data={stats.trend} color={theme.textColor} />
+                                        </div>
+                                    </div>
+                                )}
+
+                                <div className="mb-8">
+                                    <h4 className={`text-[10px] font-bold ${theme.accent} uppercase tracking-widest mb-3 flex items-center gap-2 font-sans font-extrabold`}>{mode === 'augmented' ? <Icon name="Activity" size={12} /> : <Icon name="Map" size={12} />}{mode === 'augmented' ? "Intellectual Synthesis" : "Manuscript Structure"}</h4>
+                                    <div className={`rounded-lg p-4 border ${theme.border} text-xs leading-relaxed ${theme.text} min-h-[100px] bg-opacity-50`}>
+                                        {loadingExtras ? (
+                                            <div className={`flex items-center justify-center h-full gap-2 ${theme.accent}`}><Icon name="Loader2" size={12} className="animate-spin"/> Analyzing...</div>
+                                        ) : mode === 'augmented' ? (
+                                            <div className="italic"><p className="mb-2 font-bold not-italic opacity-100">Key Debates & Context:</p>{aiSynthesis}</div>
+                                        ) : (
+                                            <ul className={`space-y-2 list-disc pl-4 opacity-80`}>{sections.length > 0 ? sections.map((s, i) => <li key={i}>{s}</li>) : <li className="italic opacity-50">No section data available.</li>}</ul>
+                                        )}
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <h4 className={`text-[10px] font-bold ${theme.accent} uppercase tracking-widest mb-3 flex items-center gap-2 font-sans font-extrabold`}><Icon name="Network" size={12} /> Cross-References</h4>
+                                    {loadingExtras ? (
+                                        <div className="space-y-2">{[1,2,3].map(i => <div key={i} className={`h-8 ${theme.border} bg-opacity-10 bg-black animate-pulse rounded-lg`}></div>)}</div>
+                                    ) : (
+                                        <div className="flex flex-col gap-2">
+                                            {relatedLinks.map((link, i) => (
+                                                <button key={i} onClick={() => onNavigate(link)} className={`text-left text-xs font-bold ${theme.text} opacity-80 hover:opacity-100 hover:text-indigo-600 p-3 border ${theme.border} rounded-lg transition-all flex items-center justify-between group/link font-sans bg-transparent hover:bg-black/5`}>
+                                                    <span className="truncate pr-2">{link}</span><Icon name="ArrowRight" size={12} className={`opacity-0 group-hover/link:opacity-100 -translate-x-2 group-hover/link:translate-x-0 transition-all ${theme.link}`} />
+                                                </button>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+
+                            <div className={`${theme.panel} rounded-xl border ${theme.border} p-4 shadow-sm`}>
+                                <h3 className={`text-[10px] font-bold ${theme.accent} uppercase tracking-widest mb-3 font-sans font-extrabold`}>Curated External Libraries</h3>
+                                <ul className="space-y-2 font-sans">
+                                    {externalSources.map((source, i) => (
+                                        <li key={i}>
+                                            <a href={`${source.url}${encodeURIComponent(topic.title)}`} target="_blank" rel="noreferrer" className={`flex items-center gap-3 text-xs font-bold ${theme.accent} hover:${theme.text} p-2 rounded transition-colors border border-transparent hover:${theme.border}`}>
+                                                <Icon name="Library" size={14} className="stroke-[2px]"/> {source.name} <Icon name="ExternalLink" size={10} className="ml-auto opacity-30" />
+                                            </a>
+                                        </li>
+                                    ))}
+                                </ul>
+                            </div>
+                        </div>
+
+                        <div className="lg:col-span-8 flex flex-col gap-12">
+                            <div>
+                                <h1 className={`text-4xl md:text-6xl ${theme.font} ${theme.text} leading-[1.1] mb-8 font-bold`}>{topic.title}</h1>
+                                <div className={`prose prose-lg max-w-none mb-8 ${theme.font} ${theme.text} opacity-90`}>
+                                    <p className="lead first-letter:text-6xl first-letter:font-serif first-letter:mr-3 first-letter:float-left first-letter:opacity-50 first-letter:leading-[0.8]">
+                                        {cleanText(topic.extract) || "No detailed record found."}
+                                    </p>
+                                </div>
+                                <div className={`flex justify-end pt-8 border-t ${theme.border}`}>
+                                    <a href={`https://en.wikipedia.org/?curid=${topic.pageid}`} target="_blank" rel="noreferrer" className={`inline-flex items-center gap-3 px-8 py-4 border-2 ${theme.border} ${theme.button} ${theme.buttonText} text-xs uppercase tracking-[0.2em] font-bold transition-all rounded-lg font-sans shadow-md hover:shadow-lg transform hover:-translate-y-0.5`}>
+                                        Read Full Manuscript <Icon name="ArrowRight" size={14} strokeWidth={2.5}/>
+                                    </a>
+                                </div>
+                            </div>
+
+                            {books.length > 0 && (
+                                <div className={`border-t ${theme.border} pt-8`}>
+                                    <h3 className={`text-[10px] font-bold ${theme.accent} uppercase tracking-widest mb-6 flex items-center gap-2 font-extrabold`}>
+                                        <Icon name="Book" size={14} className="stroke-[2px]"/> Reference Shelf: Essential Monographs
+                                    </h3>
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                        {books.map((b, i) => (
+                                            <a key={i} href={b.volumeInfo.infoLink} target="_blank" rel="noreferrer" className={`block ${theme.panel} border ${theme.border} p-4 rounded-xl hover:shadow-lg transition-all group`}>
+                                                {b.volumeInfo.imageLinks?.thumbnail && (
+                                                    <img src={b.volumeInfo.imageLinks.thumbnail} alt="" className="h-24 w-auto mb-4 mix-blend-multiply opacity-80 group-hover:opacity-100 transition-opacity shadow-sm" />
+                                                )}
+                                                <h4 className={`text-sm font-bold ${theme.text} leading-tight mb-1 line-clamp-2`}>{b.volumeInfo.title}</h4>
+                                                <p className={`text-xs ${theme.accent} mb-2`}>{b.volumeInfo.authors?.join(', ')}</p>
+                                                <p className={`text-[10px] opacity-50 ${theme.text}`}>{b.volumeInfo.publishedDate?.substring(0,4)}</p>
+                                            </a>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
+                            {mode === 'augmented' && (
+                                <div className={`border-t-4 border-indigo-900 pt-8 animate-in slide-in-from-bottom-8`}>
+                                    <h3 className="text-sm font-bold text-indigo-900 uppercase tracking-widest mb-6 flex items-center gap-2 font-extrabold">
+                                        <Icon name="Brain" size={16} className="stroke-[2px]"/> Research Assistant
+                                    </h3>
+                                    <EnhancedChatModule topic={topic} apiKey={apiKey} theme={theme} />
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const App = () => {
+            const [session, setSession] = useState({ mode: 'plain', apiKey: '' });
+            const [showGatekeeper, setShowGatekeeper] = useState(false);
+            const [showSettings, setShowSettings] = useState(false);
+            const [userSettings, setUserSettings] = useState({ theme: 'sepia', sectors: 5 });
+            const settingsBtnRef = useRef(null);
+            
+            const [view, setView] = useState('spinner');
+            const [activeTopics, setActiveTopics] = useState([]);
+            const [selectedTopic, setSelectedTopic] = useState(null);
+            const [currentCategoryLabel, setCurrentCategoryLabel] = useState("Loading...");
+            const [rotation, setRotation] = useState(0);
+            const [isSpinning, setIsSpinning] = useState(false);
+            const [showResult, setShowResult] = useState(false);
+            const [loading, setLoading] = useState(true);
+            const [seedingMode, setSeedingMode] = useState("Polymath");
+
+            const theme = UI_THEMES[userSettings.theme];
+
+            useEffect(() => {
+                const handleClickOutside = (event) => {
+                    if (settingsBtnRef.current && !settingsBtnRef.current.contains(event.target)) {
+                        setShowSettings(false);
+                    }
+                };
+                document.addEventListener('mousedown', handleClickOutside);
+                return () => document.removeEventListener('mousedown', handleClickOutside);
+            }, []);
+
+            useEffect(() => {
+                document.body.style.backgroundColor = theme.bg;
+                if (userSettings.theme === 'sepia') {
+                    document.body.style.backgroundImage = `url("data:image/svg+xml,%3Csvg viewBox='0 0 400 400' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.08'/%3E%3C/svg%3E")`;
+                } else {
+                    document.body.style.backgroundImage = 'none';
+                }
+                return () => { document.body.style.backgroundImage = ''; };
+            }, [userSettings.theme, theme]);
+
+            const loadBatch = useCallback(async (modeOverride) => {
+                setLoading(true);
+                const targetMode = modeOverride || seedingMode;
+                setCurrentCategoryLabel(targetMode === "Polymath" ? "Polymathic Selection" : targetMode);
+                
+                let candidateCategories = [];
+                if (targetMode === "Polymath") {
+                    const domains = [...new Set(CATEGORY_MAP.map(c => c.domain))];
+                    const shuffledDomains = domains.sort(() => 0.5 - Math.random()).slice(0, userSettings.sectors);
+                    
+                    shuffledDomains.forEach(dom => {
+                        const catsInDomain = CATEGORY_MAP.filter(c => c.domain === dom);
+                        if (catsInDomain.length > 0) {
+                            candidateCategories.push(catsInDomain[Math.floor(Math.random() * catsInDomain.length)]);
+                        }
+                    });
+                } else {
+                    candidateCategories = CATEGORY_MAP.filter(c => c.domain === targetMode);
+                    candidateCategories = candidateCategories.sort(() => 0.5 - Math.random());
+                }
+
+                while(candidateCategories.length < userSettings.sectors) {
+                   candidateCategories.push(CATEGORY_MAP[Math.floor(Math.random() * CATEGORY_MAP.length)]);
+                }
+
+                const selectedCats = candidateCategories.slice(0, userSettings.sectors + 3);
+
+                try {
+                    const topicPromises = selectedCats.map(cat => fetchSingleTopicFromCategory(cat));
+                    const rawTopics = await Promise.all(topicPromises);
+                    const validRawTopics = rawTopics.filter(t => t !== null);
+                    
+                    if (validRawTopics.length >= userSettings.sectors) {
+                        const limitedTopics = validRawTopics.slice(0, userSettings.sectors);
+                        const details = await fetchTopicDetails(limitedTopics.map(t => t.title));
+                        
+                        const finalTopics = details.map(d => {
+                           const meta = limitedTopics.find(rt => rt.title === d.title) || limitedTopics[0]; 
+                           return { ...d, category: meta ? meta.category : selectedCats[0] };
+                        });
+                        
+                        setActiveTopics(finalTopics);
+                    } else if (validRawTopics.length > 0) {
+                         const details = await fetchTopicDetails(validRawTopics.map(t => t.title));
+                         setActiveTopics(details.map(d => ({ ...d, category: validRawTopics.find(rt => rt.title === d.title).category })));
+                    }
+                } catch(e) { console.error(e); }
+
+                setLoading(false);
+                setRotation(0);
+            }, [seedingMode, userSettings.sectors]);
+
+            useEffect(() => { loadBatch(); }, [loadBatch]);
+
+            const handleSpin = () => {
+                if (isSpinning) return;
+                setIsSpinning(true);
+                setShowResult(false);
+                const randomIndex = Math.floor(Math.random() * activeTopics.length);
+                const segmentAngle = 360 / activeTopics.length;
+                const targetAngle = (360 - (randomIndex * segmentAngle)) - (segmentAngle / 2); 
+                const finalRot = rotation + (360 * 6) + (targetAngle - (rotation % 360)) + (Math.random() * 4 - 2); 
+                setRotation(finalRot);
+                setTimeout(() => {
+                    setSelectedTopic(activeTopics[randomIndex]);
+                    setIsSpinning(false);
+                    setShowResult(true);
+                }, 4000);
+            };
+
+            const handleNavigate = async (title) => {
+                setView('loading_direct');
+                const details = await fetchTopicDetails([title]);
+                if (details && details.length > 0) {
+                    const newTopic = { ...details[0], category: selectedTopic.category }; 
+                    setSelectedTopic(newTopic);
+                    setView('dashboard');
+                } else {
+                    setView('dashboard');
+                }
+            };
+
+            const toggleSession = () => {
+                if (session.mode === 'augmented') {
+                    setSession({ mode: 'plain', apiKey: '' });
+                } else {
+                    setShowGatekeeper(true);
+                }
+            };
+
+            const changeSeeding = (e) => {
+                const newMode = e.target.value;
+                setSeedingMode(newMode);
+                loadBatch(newMode);
+            };
+
+            return (
+                <div className={`min-h-screen ${theme.font} ${theme.text} transition-colors duration-500`}>
+                    <nav className={`border-b ${theme.border} px-6 py-4 flex items-center justify-between sticky top-0 z-40 backdrop-blur-sm ${userSettings.theme === 'dark' ? 'bg-black/20' : 'bg-white/10'}`}>
+                        <div className="flex items-center gap-3">
+                            <Icon name="BookOpen" size={20} className={theme.text} />
+                            <span className="font-bold text-lg tracking-widest uppercase hidden md:inline font-sans">The Archivist</span>
+                        </div>
+                        <div className="flex items-center gap-4">
+                            <div className="relative" ref={settingsBtnRef}>
+                                <button onClick={() => setShowSettings(!showSettings)} className={`p-2 rounded-lg ${theme.border} border hover:bg-black/5 transition-colors ${showSettings ? 'bg-black/5' : ''}`}>
+                                    <Icon name="Settings" size={14} className={theme.accent} />
+                                </button>
+                                <SettingsPopover isOpen={showSettings} onClose={() => setShowSettings(false)} currentSettings={userSettings} onUpdate={(k, v) => setUserSettings(prev => ({...prev, [k]: v}))} triggerRef={settingsBtnRef} />
+                            </div>
+                            <button onClick={toggleSession} className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all ${session.mode === 'augmented' ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200' : `${theme.panel} border ${theme.border} ${theme.accent}`}`}>
+                                {session.mode === 'augmented' ? <Icon name="Sparkles" size={12} fill="currentColor" /> : <Icon name="Lock" size={12} />}
+                                {session.mode === 'augmented' ? "Scholar's Lens" : 'Standard Mode'}
+                            </button>
+                            {view === 'spinner' && (
+                                <button onClick={() => loadBatch()} disabled={isSpinning || loading} className={`flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest ${theme.accent} hover:${theme.text} disabled:opacity-30 transition-colors`}>
+                                   {loading ? <Icon name="Loader2" size={12} className="animate-spin" /> : <Icon name="RefreshCw" size={12} />}
+                                   {loading ? 'Retrieving...' : 'Refresh'}
+                                </button>
+                            )}
+                        </div>
+                    </nav>
+
+                    <main className="container mx-auto px-4 py-8 md:py-12 flex flex-col items-center justify-center min-h-[calc(100vh-80px)]">
+                        {view === 'loading_direct' && (
+                            <div className="text-center">
+                                <Icon name="Loader2" size={48} className={`animate-spin mx-auto mb-6 ${theme.accent}`} />
+                                <p className={`text-xs font-bold uppercase tracking-widest ${theme.accent}`}>Following Reference...</p>
+                            </div>
+                        )}
+
+                        {view === 'spinner' && (
+                            <div className="w-full max-w-4xl mx-auto flex flex-col items-center animate-in fade-in duration-1000">
+                                <div className="mb-12 relative group">
+                                    <div className={`flex items-center gap-3 ${theme.panel} border ${theme.border} rounded-full px-6 py-2 shadow-sm hover:shadow-md transition-shadow`}>
+                                        <Icon name="Filter" size={14} className={theme.accent} />
+                                        <span className={`text-[10px] uppercase tracking-widest font-bold ${theme.accent}`}>Curatorial Strategy:</span>
+                                        <select value={seedingMode} onChange={changeSeeding} disabled={loading || isSpinning} className={`bg-transparent text-xs font-bold ${theme.text} uppercase tracking-widest outline-none cursor-pointer hover:text-indigo-500 appearance-none pr-4`}>
+                                            {DOMAINS.map(d => <option key={d} value={d}>{d}</option>)}
+                                        </select>
+                                        <Icon name="ChevronLeft" size={10} className={`${theme.accent} -rotate-90 absolute right-6 pointer-events-none`} />
+                                    </div>
+                                </div>
+
+                                <div className="relative w-80 h-80 md:w-[450px] md:h-[450px] mb-16">
+                                   {loading ? (
+                                     <div className="absolute inset-0 flex items-center justify-center"><Icon name="Loader2" size={48} className={`animate-spin ${theme.accent}`} /></div>
+                                   ) : (
+                                     <>
+                                       <div className="absolute -top-10 left-1/2 -translate-x-1/2 z-20 flex flex-col items-center">
+                                          <div className={`w-px h-8 ${theme.pointerColor}`} style={{backgroundColor: theme.pointerColor}}></div>
+                                          <div className={`w-3 h-3 rotate-45 -mt-1.5 ${theme.pointerColor}`} style={{backgroundColor: theme.pointerColor}}></div>
+                                       </div>
+                                       <div className={`w-full h-full rounded-full border-[12px] shadow-2xl relative transition-transform duration-[4000ms] cubic-bezier(0.2, 0.8, 0.2, 1) overflow-hidden ${theme.panel}`} style={{ borderColor: userSettings.theme === 'sepia' ? '#e6dbc4' : theme.border, transform: `rotate(${rotation}deg)` }}>
+                                         <div className={`absolute inset-0 m-2 rounded-full border ${theme.border} opacity-50`}></div>
+                                         <div className={`absolute inset-0 m-32 rounded-full border ${theme.border} bg-opacity-20`}></div>
+                                         {activeTopics.map((topic, index) => {
+                                            const count = activeTopics.length;
+                                            const rotate = index * (360 / count);
+                                            return (
+                                              <div key={topic.pageid} className="absolute top-0 right-0 w-[50%] h-[50%] origin-bottom-left" style={{ transform: `rotate(${rotate}deg) skewY(-${90 - (360/count)}deg)` }}>
+                                                <div className={`w-full h-full border-l ${theme.border} flex items-center justify-center pt-16 hover:bg-black/5 transition-colors cursor-pointer group`} style={{ transform: `skewY(${90 - (360/count)}deg) rotate(${360 / count / 2}deg)` }}>
+                                                   <div className={`transform -rotate-90 translate-x-12 w-32 flex flex-col items-center justify-center ${theme.text} opacity-80 group-hover:opacity-100 group-hover:scale-110 transition-all`}>
+                                                      {getDomainIcon(topic.category?.domain, count > 4 ? 24 : 32, "stroke-[1.5]")}
+                                                   </div>
+                                                </div>
+                                              </div>
+                                            );
+                                         })}
+                                       </div>
+                                       <div className={`absolute top-1/2 left-1/2 w-24 h-24 ${theme.spinnerBg} rounded-full transform -translate-x-1/2 -translate-y-1/2 shadow-[inset_0_2px_4px_rgba(0,0,0,0.1)] border ${theme.border} flex items-center justify-center`}>
+                                         <Icon name="Search" size={24} className={`${theme.accent} opacity-50`}/>
+                                       </div>
+                                     </>
+                                   )}
+                                </div>
+
+                                <button onClick={handleSpin} disabled={isSpinning || loading} className={`px-12 py-4 border ${theme.border} text-xs uppercase tracking-[0.25em] font-bold transition-all ${theme.panel} ${theme.text} hover:opacity-80 rounded shadow-sm hover:shadow-xl ${isSpinning ? 'opacity-50' : ''}`}>
+                                  {isSpinning ? 'Consulting Index...' : 'Query The Index'}
+                                </button>
+                            </div>
+                        )}
+                        
+                        {view === 'dashboard' && (
+                            <Dashboard topic={selectedTopic} mode={session.mode} apiKey={session.apiKey} theme={theme} onBack={() => { setView('spinner'); setShowResult(false); }} onNavigate={handleNavigate} />
+                        )}
+                    </main>
+
+                    {showResult && view === 'spinner' && selectedTopic && (
+                        <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-black/80 backdrop-blur-sm animate-in fade-in">
+                            <div className={`${theme.panel} max-w-md w-full p-12 shadow-2xl relative rounded-xl text-center border ${theme.border}`}>
+                                <div className={`absolute -top-3 left-1/2 -translate-x-1/2 ${theme.button} ${theme.buttonText} px-4 py-1.5 text-[10px] uppercase tracking-widest font-bold rounded-full shadow-lg`}>File Retrieved</div>
+                                <div className={`mb-6 opacity-60 flex justify-center ${theme.text}`}>{selectedTopic.category && getDomainIcon(selectedTopic.category.domain, 48)}</div>
+                                <h2 className={`text-3xl font-serif ${theme.text} mb-6 leading-tight`}>{selectedTopic.title}</h2>
+                                <div className={`w-8 h-1 ${theme.border} border-t-4 mx-auto mb-8`}></div>
+                                <p className={`${theme.accent} mb-10 leading-relaxed font-serif italic text-sm`}>"{cleanText(selectedTopic.extract).substring(0, 150)}..."</p>
+                                <button onClick={() => setView('dashboard')} className={`w-full py-4 ${theme.button} ${theme.buttonText} text-[10px] uppercase tracking-[0.2em] transition-colors rounded-lg font-bold shadow-xl border-none`}>Examine File</button>
+                                <button onClick={() => setShowResult(false)} className={`mt-4 ${theme.accent} hover:${theme.text} text-[10px] uppercase tracking-widest block w-full`}>Discard & Return</button>
+                            </div>
+                        </div>
+                    )}
+
+                    <CredentialsModal isOpen={showGatekeeper} onClose={() => setShowGatekeeper(false)} onConfirm={(key) => { setSession({ mode: 'augmented', apiKey: key }); setShowGatekeeper(false); }} />
+                    <SettingsPopover isOpen={showSettings} onClose={() => setShowSettings(false)} currentSettings={userSettings} onUpdate={(k, v) => setUserSettings(prev => ({...prev, [k]: v}))} triggerRef={settingsBtnRef} />
+                    
+                    <div className={`mt-20 pt-8 pb-4 text-center opacity-60 hover:opacity-100 transition-opacity border-t ${theme.border} mx-auto max-w-4xl`}>
+                        <div className="flex flex-col items-center gap-2">
+                            <Icon name="AlertTriangle" size={14} className={theme.accent} />
+                            <p className={`text-[10px] uppercase tracking-widest font-bold ${theme.accent}`}>System Notice & Disclaimer</p>
+                            <p className={`text-xs ${theme.text} leading-relaxed max-w-2xl px-4`}>
+                                The Archivist is a demonstration interface aggregating content from public APIs (Wikipedia, Google Books, Gemini). Information retrieved automatically may not reflect current academic consensus. This tool assumes no liability for content generated or its accuracy. For rigorous study, please consult primary sources and curated academic repositories.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
