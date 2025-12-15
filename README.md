@@ -75,10 +75,6 @@ The Archivist aggregates real-time data from the following public APIs:
 * **Icons:** FontAwesome
 * **Transpilation:** Babel Standalone (In-browser)
 
-## 📄 License
-
-This project is open-source and available under the **MIT License**.
-
 ---
 
 *Prototyped for the TRACKS @ PWC Launch Initiative. Core concept put forth by [Aaditya Chhatre](https://www.linkedin.com/in/aaditya-chhatre-70a01a215/), features and use-case developed upon later.*
